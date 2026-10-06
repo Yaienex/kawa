@@ -1,0 +1,24 @@
+[package]
+name = "kawam"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+kawactl = { path = "../kawactl" }
+serde_json.workspace = true
+serde.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+bitflags = "2"
+wayland-client = "0.31"
+wayland-scanner = "0.31"
+wayland-backend = "0.3.17"
+wayland-protocols = { version = "0.32", features = ["client", "staging", "unstable"] }
+wayland-protocols-wlr = { version = "0.2", features = ["client"] }
+libc = "0.2.190"
+mlua = { version = "0.10", features = ["lua54", "vendored","serialize"] }
+inotify = "0.11.5"
+[[bin]]
+name = "kawa"
+path = "src/main.rs"
