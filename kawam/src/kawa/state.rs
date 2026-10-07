@@ -15,7 +15,7 @@ use wayland_protocols_wlr::layer_shell::v1::client::zwlr_layer_shell_v1::{self, 
 use super::Globals;
 use super::context::Context;
 use crate::kawa::seat::Seat;
-use crate::protocol::event;
+use crate::protocol::{event, river_wm};
 use crate::protocol::river::*;
 use crate::protocol::river_input::{river_input_device_v1};
 use crate::protocol::river_layer_shell::river_layer_shell_v1;
@@ -186,6 +186,7 @@ impl Dispatch<RiverWindowManagerV1, ()> for AppState {
             }
             WmEvent::RenderStart => {
                 debug!("Event Render Start");
+                state.context.borrow_mut().handle_render_start();
                 state.context.borrow().finish_render();
                 debug!("Event Render finish");
             }
@@ -196,13 +197,23 @@ impl Dispatch<RiverWindowManagerV1, ()> for AppState {
                 info!("Event Session Unlocked");
             }
             WmEvent::Window { id } => {
-                info!("A new window has been created with id : {:?}", id.id());
+                debug!("A new window has been created with id : {:?}", id.id());
+                let window = state.context.borrow_mut().create_window(id.clone());
+                let window_id = window.borrow().id;
+
+                // Get the river node of the river window
+                let node: RiverNodeV1 = id.get_node(qh, ());
+                window.borrow_mut().rwm_node = Some(node);
+
+                
             }
             WmEvent::Output { id } => {
-                info!("A new output has been plugged with id : {:?}", id.id());
+                debug!("A new output has been plugged with id : {:?}", id.id());
+                let output = state.context.borrow_mut().create_output(id.clone());
             }
             WmEvent::Seat { id } => {
                 info!("A new seat has been created with id : {:?}", id.id());
+                let seat = state.context.borrow_mut().create_seat(id.clone());
             }
         }
     }
@@ -456,6 +467,20 @@ impl Dispatch<RiverLibinputResultV1, ()> for AppState {
 }
 
 //// No Events Dispatchs
+
+impl Dispatch<RiverNodeV1, ()> for AppState {
+    fn event(
+        _state: &mut Self,
+        _proxy: &RiverNodeV1,
+        _event: river_wm::river_node_v1::Event,
+        _data: &(),
+        _conn: &Connection,
+        _qh: &QueueHandle<Self>,
+    ) {
+        // Node events would be handled here if needed
+    }
+}
+
 impl Dispatch<ZwlrLayerShellV1, ()> for AppState {
     fn event(
         _state: &mut Self,

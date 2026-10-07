@@ -1,5 +1,5 @@
-use crate::{config::{Config, lua::LuaRuntime}};
-use std::{cell::RefCell, collections::HashMap, rc::Rc, time::Duration};
+use crate::{config::{Config, lua::LuaRuntime}, protocol::{river::{RiverOutputV1, RiverSeatV1, RiverWindowV1}, river_wm::river_window_v1::Edges}};
+use std::{cell::{Ref, RefCell}, collections::HashMap, rc::Rc, time::Duration};
 
 use super::{
     output::{Output, OutputId},
@@ -23,11 +23,17 @@ pub struct Context {
     pub outputs: HashMap<OutputId, Rc<RefCell<Output>>>,
     pub windows: HashMap<WindowId, Rc<RefCell<Window>>>,
     pub seats: HashMap<SeatId, Rc<RefCell<Seat>>>,
-
+    pub focused_window : Option<WindowId>,
+    pub current_output: Option<OutputId>,
     // Config
     pub config: Config,
     pub lua: LuaRuntime,
     pub pending_apply_conf: bool,
+
+    // incremental value for next id
+    pub next_window_id : usize,
+    pub next_output_id : usize,
+    pub next_seat_id : usize,
 
     pub anim_start_time: Option<Duration>,
     pub request_stop: bool,
@@ -49,10 +55,16 @@ impl Context {
             windows: HashMap::new(),
             seats: HashMap::new(),
 
+            //
+            focused_window: None,
+            current_output: None,
             //Config
             config: config,
             lua: lua,
             pending_apply_conf: false,
+            next_window_id: 1,
+            next_output_id : 1,
+            next_seat_id : 1,
 
             // Animation
             anim_start_time: None,
@@ -102,8 +114,83 @@ impl Context {
             self.reload_config();
         }
 
+        for (window_id, window) in  &self.windows{
+            let mut win = window.borrow_mut();
+            let output = self.outputs.get(&self.current_output.unwrap().clone()).unwrap();
+            win.propose_dimensions(output.borrow().width, output.borrow().height);
+
+            drop(win);
+        }
+
     }
 
+    pub fn handle_render_start(&mut self){
+        for window in self.windows.values() {
+            let mut w = window.borrow_mut();
+            let edges = Edges::all();
+            w.set_borders(edges, 0, 0, 0, 0, 0);
+
+
+            if let Some(focused_id) = self.focused_window {
+                if let Some(root) = self.windows.get(&focused_id) {
+                    let root = root.borrow();
+                    root.place_top();
+                }
+            }
+        }
+    }
+
+    /// Creation Functions
+    /// Create a Kawa Window and return it for further config
+    pub fn create_window(&mut self,  rwm_window: RiverWindowV1) -> Rc<RefCell<Window>> {
+        let id = self.next_window_id;
+        self.next_window_id += 1;
+        self.focused_window = Some(id);
+
+        // Creating our object 
+        let mut window = Window::new(id);
+        window.rwm_window = Some(rwm_window);
+
+        let window = Rc::new(RefCell::new(window));
+        self.windows.insert(id, window.clone());
+
+        window
+    }
+
+    pub fn create_output(&mut self, rwm_output: RiverOutputV1) -> Rc<RefCell<Output>>{
+        let id = self.next_output_id;
+        self.next_output_id += 1;
+         
+        let mut output = Output::new(id);
+        output.rwm_output = Some(rwm_output);
+
+        let output = Rc::new(RefCell::new(output));
+        self.outputs.insert(id, output.clone());
+
+        // Set as current output if first
+        if self.current_output.is_none() {
+            self.current_output = Some(id);
+        }
+
+        output
+    }
+
+    pub fn create_seat(&mut self, rwm_seat: RiverSeatV1) -> Rc<RefCell<Seat>> {
+        let id = self.next_seat_id;
+        self.next_seat_id += 1;
+         
+        let mut seat = Seat::new(id);
+        seat.rwm_seat = Some(rwm_seat);
+
+        let seat = Rc::new(RefCell::new(seat));
+
+        seat
+    }
+
+    /// Creation Functions end
+
+
+    //// Finish Sequence
     /// Finish manage sequence
     pub fn finish_manage(&self) {
         if let Some(ref rwm) = self.rwm {
