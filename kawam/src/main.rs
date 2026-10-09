@@ -158,7 +158,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             
             // IPC Events
             if poll_fds[1].revents & libc::POLLIN != 0 {
-                ipc_server.handle_connections(&state);
+                ipc_server.handle_connections(&mut state);
             }
 
             // Config Changes

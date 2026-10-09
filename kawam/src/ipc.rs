@@ -56,15 +56,20 @@ impl IpcServer {
         out
     }
 
-    pub fn handle_connections(&mut self, state: &AppState) {
+    pub fn handle_connections(&mut self, state: &mut AppState) {
         self.pendings.extend(self.drain());
         // Borrow context and get needed informations
         // Safe because we are in the conditional poll event for IPC
         // So there must be no context borrowal at this state
-        let context = state.context.borrow();
+        let mut context = state.context.borrow_mut();
 
 
         for req in self.pendings.drain(..) {
+            if req.req == IpcReq::Quit{
+                info!("Quit Requested");
+                state.globals.rwm.as_ref().unwrap().exit_session();
+            
+            }
             let data = serde_json::json!({
                 "caca":"oui"
             });

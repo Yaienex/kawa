@@ -28,6 +28,7 @@ pub struct Context {
     
     pub current_output: Option<OutputId>,
     pub current_workspace: WorkspaceId,
+    pub current_seat : Option<SeatId>,
     // Config
     pub config: Config,
     pub lua: LuaRuntime,
@@ -66,6 +67,7 @@ impl Context {
             //
             current_output: None,
             current_workspace: 1, // Always start at the first one
+            current_seat: None,
 
             //Config
             config: config,
@@ -130,7 +132,14 @@ impl Context {
 
             drop(ws);
         }
-
+        
+        
+        // focus a window
+        // if a window exist in the first workspace then we focus it
+        if let Some(id) = self.workspaces.get(&self.current_workspace).unwrap().borrow().focused_window {
+            self.focus(id);
+        }
+        
     }
 
     pub fn handle_render_start(&mut self){
@@ -152,6 +161,17 @@ impl Context {
                 }
             }
         }
+    }
+
+    pub fn focus(&self, id: WindowId){
+        let curr_ws = self.workspaces.get(&self.current_workspace).unwrap();
+        let windows = &curr_ws.borrow().windows;
+        if let (Some(window), Some(seat_id)) = (windows.get(&id), self.current_seat) {
+            if let Some(seat) = self.seats.get(&seat_id) {
+                seat.borrow().focus_window(&window.borrow());
+            }
+        }
+        
     }
 
     /// Creation Functions
@@ -204,7 +224,12 @@ impl Context {
         seat.rwm_seat = Some(rwm_seat);
 
         let seat = Rc::new(RefCell::new(seat));
+        self.seats.insert(id, seat.clone());
 
+        // If first put it 
+        if self.current_seat.is_none() {
+            self.current_seat = Some(id);
+        }
         seat
     }
 

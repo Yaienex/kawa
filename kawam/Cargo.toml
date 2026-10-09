@@ -19,6 +19,11 @@ wayland-protocols-wlr = { version = "0.2", features = ["client"] }
 libc = "0.2.190"
 mlua = { version = "0.10", features = ["lua54", "vendored","serialize"] }
 inotify = "0.11.5"
+
+[features]
+default = []
+full_debug = []
+
 [[bin]]
 name = "kawa"
 path = "src/main.rs"

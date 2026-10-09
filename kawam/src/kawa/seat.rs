@@ -1,7 +1,7 @@
 //! Seat management for Kawa Client
 
 use wayland_client::protocol::wl_seat::WlSeat;
-
+use super::window::Window;
 use crate::protocol::river::RiverSeatV1;
 
 // Seat Identifier
@@ -19,8 +19,18 @@ pub struct Seat {
 
 impl Seat{
     pub fn new(id: SeatId) -> Self{
-        Self { id: id, rwm_seat: None,
+        Self { 
+            id: id, 
+            rwm_seat: None,
             wl_seat: None,
-            removed: false, wl_seat_name: 0 }
+            removed: false,
+            wl_seat_name: 0 }
+    }
+
+    /// Focus a window
+    pub fn focus_window(&self, window: &Window) {
+        if let (Some(rwm_seat), Some(rwm_window)) = (&self.rwm_seat, &window.rwm_window) {
+            rwm_seat.focus_window(rwm_window);
+        }
     }
 }

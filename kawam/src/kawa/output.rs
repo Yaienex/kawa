@@ -1,5 +1,6 @@
 //! Output management for Kawa Client
 
+use crate::kawa::window;
 use crate::protocol::river::{RiverLayerShellOutputV1, RiverOutputV1};
 use std::cell::RefCell;
 use std::rc::Weak;
@@ -34,16 +35,6 @@ pub struct Output {
     pub height: i32,
     /// Output scale factor (integer)
     pub scale: i32,
-
-    /// Currently fullscreen window on this output
-    pub fullscreen_window: Option<Weak<RefCell<super::window::Window>>>,
-
-    /// Exclusive area (for layer shell surfaces like bars)
-    pub exclusive_x: i32,
-    pub exclusive_y: i32,
-    pub exclusive_width: i32,
-    pub exclusive_height: i32,
-
     /// Whether this output has been removed
     pub removed: bool,
 }
@@ -63,13 +54,14 @@ impl Output {
             width: 0,
             height: 0,
             scale: 1,
-            fullscreen_window: None,
-            exclusive_x: 0,
-            exclusive_y: 0,
-            exclusive_width: 0,
-            exclusive_height: 0,
             removed: false,
         }
+    }
+
+    ///
+    pub fn update_dimensions(&mut self, width: i32, height: i32){
+        self.width = width;
+        self.height = height;
     }
 
     /// Check if a point is within this output

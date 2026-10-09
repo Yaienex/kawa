@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 pub enum Cmd {
     Daemon,
     Version,
-
     Get {
         #[command(subcommand)]
         what: GetCmd,

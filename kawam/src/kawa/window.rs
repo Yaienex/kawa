@@ -1,6 +1,8 @@
 //! Window Object manage by Kawa Client
 //! So we don't manipulate raw Wayland data
 
+use mlua::Debug;
+
 use crate::protocol::{river::{RiverNodeV1, RiverWindowV1}, river_wm::river_window_v1::Edges};
 
 
@@ -65,5 +67,16 @@ impl Window{
         if let Some(ref rwm_window) = self.rwm_window {
             rwm_window.set_borders(edges, width, r, g, b, a);
         }
+    }
+}
+
+
+
+impl std::fmt::Debug for Window{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Window")
+            .field("id", &self.id)
+            .field("name", &self.title)
+            .finish()
     }
 }

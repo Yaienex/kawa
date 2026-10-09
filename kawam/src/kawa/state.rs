@@ -31,7 +31,7 @@ pub struct AppState {
 }
 
 // Helpers
-fn attach_wl_seat_to_kawa_seat(state: &AppState, kawa_seat: Rc<RefCell<Seat>>) {
+fn attach_wl_seat_to_kawa_seat(state: &AppState, kawa_seat: &Rc<RefCell<Seat>>) {
     let wl_seat_name = kawa_seat.borrow().wl_seat_name;
     if wl_seat_name == 0 || kawa_seat.borrow().wl_seat.is_some() {
         return;
@@ -119,7 +119,7 @@ impl Dispatch<wl_registry::WlRegistry, ()> for AppState {
                     // binding the wl_seat to kawa Seat
                     for seat_ref in seats {
                         if seat_ref.borrow().wl_seat_name == name {
-                            attach_wl_seat_to_kawa_seat(state, seat_ref);
+                            attach_wl_seat_to_kawa_seat(state, &seat_ref);
                             break;
                         }
                     }
@@ -179,22 +179,26 @@ impl Dispatch<RiverWindowManagerV1, ()> for AppState {
                 state.context.borrow_mut().request_stop = true;
             }
             WmEvent::ManageStart => {
+                #[cfg(feature = "full_debug")]
                 debug!("Event Manage Start");
                 state.context.borrow_mut().handle_manage_start();
                 state.context.borrow().finish_manage();
+                #[cfg(feature = "full_debug")]
                 debug!("Event Manage Finish");
             }
             WmEvent::RenderStart => {
+                #[cfg(feature = "full_debug")]
                 debug!("Event Render Start");
                 state.context.borrow_mut().handle_render_start();
                 state.context.borrow().finish_render();
+                #[cfg(feature = "full_debug")]
                 debug!("Event Render finish");
             }
             WmEvent::SessionLocked => {
-                info!("Event Session Locked");
+                debug!("Event Session Locked");
             }
             WmEvent::SessionUnlocked => {
-                info!("Event Session Unlocked");
+                debug!("Event Session Unlocked");
             }
             WmEvent::Window { id } => {
                 debug!("A new window has been created with id : {:?}", id.id());
@@ -205,14 +209,13 @@ impl Dispatch<RiverWindowManagerV1, ()> for AppState {
                 let node: RiverNodeV1 = id.get_node(qh, ());
                 window.borrow_mut().rwm_node = Some(node);
 
-                
             }
             WmEvent::Output { id } => {
                 debug!("A new output has been plugged with id : {:?}", id.id());
                 let output = state.context.borrow_mut().create_output(id.clone());
             }
             WmEvent::Seat { id } => {
-                info!("A new seat has been created with id : {:?}", id.id());
+                debug!("A new seat has been created with id : {:?}", id.id());
                 let seat = state.context.borrow_mut().create_seat(id.clone());
             }
         }
@@ -244,7 +247,7 @@ impl Dispatch<RiverWindowV1, ()> for AppState {
         use crate::protocol::event::WEvent;
         // first find the window inside our windows map inside our context
         let context = state.context.borrow();
-        let found = context.workspaces.iter().find_map(|(&wk_id, ws)| {
+        let found = context.workspaces.iter().find_map(|(&_wk_id, ws)| {
             ws.borrow().windows.iter().find_map(|(&win_id,w)|{
                 if w.borrow()
                 .rwm_window
@@ -271,6 +274,7 @@ impl Dispatch<RiverWindowV1, ()> for AppState {
                 w.title = title;
             }
             WEvent::Dimensions { width, height } => {
+                debug!("Window: Dimensions Event");
                 window.borrow_mut().update_dimensions(width, height);
             }
             _ => {}
@@ -287,6 +291,7 @@ impl Dispatch<RiverSeatV1, ()> for AppState {
         _conn: &Connection,
         qh: &QueueHandle<Self>,
     ) {
+        use crate::protocol::event::SEvent;
         // First, find the seat we are actually managing
         let context = state.context.borrow();
         let found = context.seats.iter().find_map(|(&id, s)| {
@@ -307,6 +312,14 @@ impl Dispatch<RiverSeatV1, ()> for AppState {
         };
         drop(context);
 
+        match event {
+            SEvent::WlSeat { name } => {
+                seat.borrow_mut().wl_seat_name = name;
+                attach_wl_seat_to_kawa_seat(state, &seat);
+            },
+
+            _ => {}
+        }
 
     }
 }
@@ -342,8 +355,8 @@ impl Dispatch<RiverOutputV1, ()> for AppState {
 
         match event{
             event::OEvent::Dimensions { width, height } => {
-                let mut output = output.borrow_mut();
-
+                debug!("Output {} Dimensions Event", proxy.id());
+                output.borrow_mut().update_dimensions(width, height);
             }
             _ => {}
         }
