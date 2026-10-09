@@ -235,7 +235,7 @@ impl Dispatch<RiverWindowManagerV1, ()> for AppState {
 impl Dispatch<RiverWindowV1, ()> for AppState {
     fn event(
         state: &mut Self,
-        window: &RiverWindowV1,
+        proxy: &RiverWindowV1,
         event: event::WEvent,
         _data: &(),
         _conn: &Connection,
@@ -244,12 +244,35 @@ impl Dispatch<RiverWindowV1, ()> for AppState {
         use crate::protocol::event::WEvent;
         // first find the window inside our windows map inside our context
         let context = state.context.borrow();
-
+        let found = context.workspaces.iter().find_map(|(&wk_id, ws)| {
+            ws.borrow().windows.iter().find_map(|(&win_id,w)|{
+                if w.borrow()
+                .rwm_window
+                .as_ref()
+                .map(|rw| rw == proxy)
+                .unwrap_or(false)
+                {
+                    Some((win_id, w.clone()))
+                } else {
+                    None
+                }
+            })
+           
+        });
+        let (window_id, window) = match found {
+            Some(f) => f,
+            None => return,
+        };
         drop(context);
 
         match event {
-            WEvent::Title { title } => {}
-
+            WEvent::Title { title } => {
+                let mut w = window.borrow_mut();
+                w.title = title;
+            }
+            WEvent::Dimensions { width, height } => {
+                window.borrow_mut().update_dimensions(width, height);
+            }
             _ => {}
         }
     }
@@ -258,7 +281,7 @@ impl Dispatch<RiverWindowV1, ()> for AppState {
 impl Dispatch<RiverSeatV1, ()> for AppState {
     fn event(
         state: &mut Self,
-        seat: &RiverSeatV1,
+        proxy: &RiverSeatV1,
         event: event::SEvent,
         _data: &(),
         _conn: &Connection,
@@ -266,15 +289,32 @@ impl Dispatch<RiverSeatV1, ()> for AppState {
     ) {
         // First, find the seat we are actually managing
         let context = state.context.borrow();
-
+        let found = context.seats.iter().find_map(|(&id, s)| {
+            if s.borrow()
+                .rwm_seat
+                .as_ref()
+                .map(|rw| rw == proxy)
+                .unwrap_or(false)
+            {
+                Some((id, s.clone()))
+            } else {
+                None
+            }
+        });
+        let (seat_id, seat) = match found {
+            Some(f) => f,
+            None => return,
+        };
         drop(context);
+
+
     }
 }
 
 impl Dispatch<RiverOutputV1, ()> for AppState {
     fn event(
         state: &mut Self,
-        output: &RiverOutputV1,
+        proxy: &RiverOutputV1,
         event: event::OEvent,
         _data: &(),
         _conn: &Connection,
@@ -282,8 +322,31 @@ impl Dispatch<RiverOutputV1, ()> for AppState {
     ) {
         // First, find the output we are actually managing
         let context = state.context.borrow();
-        info!("here comme the output : {}", output.id());
+        let found = context.outputs.iter().find_map(|(&id, o)| {
+            if o.borrow()
+                .rwm_output
+                .as_ref()
+                .map(|rw| rw == proxy)
+                .unwrap_or(false)
+            {
+                Some((id, o.clone()))
+            } else {
+                None
+            }
+        });
+        let (output_id, output) = match found {
+            Some(f) => f,
+            None => return,
+        };
         drop(context);
+
+        match event{
+            event::OEvent::Dimensions { width, height } => {
+                let mut output = output.borrow_mut();
+
+            }
+            _ => {}
+        }
     }
 }
 

@@ -13,6 +13,10 @@ pub struct Window {
     pub rwm_node: Option<RiverNodeV1>,
     pub app_id : Option<String>,
     pub title: Option<String>,
+
+
+    pub width: i32,
+    pub height: i32,
     pub proposed_width: i32,
     pub proposed_height: i32,
 }
@@ -25,6 +29,9 @@ impl Window{
             rwm_node: None,
             app_id: None, 
             title: None,
+
+            width : 0,
+            height : 0,
             proposed_width: 0,
             proposed_height: 0,
         }
@@ -40,6 +47,11 @@ impl Window{
         if let Some(ref rwm_window) = self.rwm_window {
             rwm_window.propose_dimensions(self.proposed_width, self.proposed_height);
         }
+    }
+
+    pub fn update_dimensions(&mut self, width: i32, height: i32) {
+        self.width = width;
+        self.height = height;
     }
 
     /// Place this window at top of render list

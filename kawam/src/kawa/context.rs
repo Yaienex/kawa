@@ -1,4 +1,6 @@
-use crate::{config::{Config, lua::LuaRuntime}, protocol::{river::{RiverOutputV1, RiverSeatV1, RiverWindowV1}, river_wm::river_window_v1::Edges}};
+use wayland_protocols::ext::workspace;
+
+use crate::{config::{Config, lua::LuaRuntime}, kawa::workspace::{Workspace, WorkspaceId}, protocol::{river::{RiverOutputV1, RiverSeatV1, RiverWindowV1}, river_wm::river_window_v1::Edges}};
 use std::{cell::{Ref, RefCell}, collections::HashMap, rc::Rc, time::Duration};
 
 use super::{
@@ -21,10 +23,11 @@ pub struct Context {
 
     // Managed Objects
     pub outputs: HashMap<OutputId, Rc<RefCell<Output>>>,
-    pub windows: HashMap<WindowId, Rc<RefCell<Window>>>,
+    pub workspaces: HashMap<WorkspaceId, Rc<RefCell<Workspace>>>,
     pub seats: HashMap<SeatId, Rc<RefCell<Seat>>>,
-    pub focused_window : Option<WindowId>,
+    
     pub current_output: Option<OutputId>,
+    pub current_workspace: WorkspaceId,
     // Config
     pub config: Config,
     pub lua: LuaRuntime,
@@ -43,6 +46,9 @@ pub struct Context {
    
 impl Context {
     pub fn new(lua: LuaRuntime, config: Config ) -> anyhow::Result<Self>  {
+        let wk = Rc::new(RefCell::new(Workspace::new(1)));
+        let mut wk_hash = HashMap::new();
+        wk_hash.insert(1, wk);
         let  ctx = Self {
             // River / Wayland Globals
             rwm: None,
@@ -52,12 +58,15 @@ impl Context {
             rwm_libinput_config: None,
             //Managed Objects
             outputs: HashMap::new(),
-            windows: HashMap::new(),
+            // Temporary method but it might need to be done somewhere else
+            // But the first workspace has to be set up before any window pop
+            workspaces: wk_hash,
             seats: HashMap::new(),
 
             //
-            focused_window: None,
             current_output: None,
+            current_workspace: 1, // Always start at the first one
+
             //Config
             config: config,
             lua: lua,
@@ -114,25 +123,30 @@ impl Context {
             self.reload_config();
         }
 
-        for (window_id, window) in  &self.windows{
-            let mut win = window.borrow_mut();
+        for (_workspace_id, workspace) in  &self.workspaces{
+            let mut ws = workspace.borrow_mut();
             let output = self.outputs.get(&self.current_output.unwrap().clone()).unwrap();
-            win.propose_dimensions(output.borrow().width, output.borrow().height);
+            ws.propose_dimensions_to_windows(output.borrow().width, output.borrow().height);
 
-            drop(win);
+            drop(ws);
         }
 
     }
 
     pub fn handle_render_start(&mut self){
-        for window in self.windows.values() {
-            let mut w = window.borrow_mut();
+        //the first workspace is always present 
+        let workspace = self.workspaces.get(&self.current_workspace).unwrap();
+        let ws = workspace.borrow();
+        // TODO 
+        let windows = ws.windows.clone();
+        for (_win_id,window) in windows {
+            let  w = window.borrow_mut();
             let edges = Edges::all();
             w.set_borders(edges, 0, 0, 0, 0, 0);
+            drop(w);
 
-
-            if let Some(focused_id) = self.focused_window {
-                if let Some(root) = self.windows.get(&focused_id) {
+            if let Some(focused_id) = ws.focused_window {
+                if let Some(root) = ws.windows.get(&focused_id) {
                     let root = root.borrow();
                     root.place_top();
                 }
@@ -145,14 +159,21 @@ impl Context {
     pub fn create_window(&mut self,  rwm_window: RiverWindowV1) -> Rc<RefCell<Window>> {
         let id = self.next_window_id;
         self.next_window_id += 1;
-        self.focused_window = Some(id);
 
         // Creating our object 
         let mut window = Window::new(id);
         window.rwm_window = Some(rwm_window);
 
         let window = Rc::new(RefCell::new(window));
-        self.windows.insert(id, window.clone());
+      
+
+        if let Some(ws) = self.workspaces.get(&self.current_workspace){
+            let mut workspace = ws.borrow_mut();
+            workspace.set_focused_window(id);
+            workspace.add_window(id,window.clone());
+        };
+
+      
 
         window
     }
